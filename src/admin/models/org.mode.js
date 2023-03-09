@@ -1,33 +1,60 @@
 const _ = require('lodash');
 const { ROLE, TABLE } = require('@serverless-cd/config');
-const { unionId, prisma } = require('../util');
+const { generateOrgIdByUserIdAndOrgName, prisma } = require('../util');
 
 const orgPrisma = prisma[TABLE.ORG];
 
+const getOrgInfo = (result) => {
+  if (!result) {
+    return {};
+  }
+  if (_.isArray(result)) {
+    result = _.first(result);
+  }
+  result.secrets = result.secrets ? JSON.parse(result.secrets) : {};
+  if (result.third_part) {
+    result.third_part = JSON.parse(result.third_part)
+  }
+  return result;
+};
+
+const saveOrg = (data) => {
+  if (data.secrets) {
+    data.secrets = JSON.stringify(data.secrets);
+  }
+  if (data.third_part) {
+    data.third_part = JSON.stringify(data.third_part);
+  }
+  return data;
+}
+
 module.exports = {
-  async getOrgFirst(where) {
-    const result = await orgPrisma.findFirst({ where });
-    return result;
+  async getOwnerOrgByName(name = '') {
+    if (!name) {
+      return {};
+    }
+    const result = await orgPrisma.findFirst({ where: { name, role: ROLE.OWNER } });
+    return getOrgInfo(result);
   },
-  async getOrgById(id) {
+  async getOrgById(id = '') {
     const result = await orgPrisma.findUnique({ where: { id } });
-    return result;
+    return getOrgInfo(result);
   },
-  async createOrg({ userId, name, role, description }) {
-    const orgId = unionId();
-    const result = await orgPrisma.create({
-      data: {
-        id: orgId,
-        user_id: userId,
-        name,
-        role: role || ROLE.OWNER,
-        description,
-      },
-    });
+  async createOrg({ userId, name, role, description, secrets }) {
+    const orgId = generateOrgIdByUserIdAndOrgName(userId, name);
+    const data = {
+      id: orgId,
+      user_id: userId,
+      name,
+      role: role || ROLE.OWNER,
+      description,
+      secrets,
+    };
+    const result = await orgPrisma.create({ data: saveOrg(data) });
     return result;
   },
   async updateOrg(id, data) {
-    const result = await orgPrisma.update({ where: { id }, data });
+    const result = await orgPrisma.update({ where: { id }, data: saveOrg(data) });
     return result;
   },
   async remove(id) {
@@ -44,11 +71,8 @@ module.exports = {
       orgPrisma.findMany({
         ...option,
         where,
-        orderBy: {
-          updated_time: 'desc',
-        },
       }),
     ]);
-    return { totalCount, result };
+    return { totalCount, result: _.map(result, (r) => getOrgInfo(r)) };
   },
 };

@@ -17,6 +17,10 @@ async function updateUserById(userId, data) {
   return await userModel.updateUserById(userId, data);
 }
 
+async function fuzzyQueriesByName(containsName) {
+  return await userModel.fuzzyQueriesByName(containsName);
+}
+
 /**
  * 根据团队Id拿到拥有者用户数据
  */
@@ -28,7 +32,7 @@ async function getOrganizationOwnerIdByOrgId(orgId) {
   if (role === ROLE.OWNER) {
     ownerUserId = orgData.user_id;
   } else {
-    const ownerOrgData = await orgModel.getOrgFirst({ name, role: ROLE.OWNER });
+    const ownerOrgData = await orgModel.getOwnerOrgByName(name);
     ownerUserId = ownerOrgData.user_id;
   }
 
@@ -36,25 +40,23 @@ async function getOrganizationOwnerIdByOrgId(orgId) {
   return await getUserById(ownerUserId);
 }
 
-/**
- * 根据团队Id获取拥有者用户Token
- */
-async function getProviderToken(orgId, userId, provider) {
-  const userInfo = await getOrganizationOwnerIdByOrgId(orgId);
-  const token = _.get(userInfo, `third_part.${provider}.access_token`, '');
-  if (!token) {
-    if (_.get(userInfo, 'id', '') === userId) {
-      throw new ValidationError(`${provider} 授权令牌不存在，请重新授权`);
-    }
-    throw new NoPermissionError(`没有找到 ${provider}.access_token`);
+function desensitization(data) {
+  const filterData = (item) => {
+    return _.omit(item, ['password', 'secrets'])
+  };
+
+  if (_.isArray(data)) {
+    return _.map(data, item => filterData(item));
   }
 
-  return token;
+  return filterData(data);
 }
 
+
 module.exports = {
+  fuzzyQueriesByName,
+  desensitization,
   getUserById,
   updateUserById,
-  getProviderToken,
   getOrganizationOwnerIdByOrgId,
 };

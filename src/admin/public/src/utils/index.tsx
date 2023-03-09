@@ -1,6 +1,15 @@
 import _ from 'lodash';
+import { history } from 'ice';
+
 import moment from 'moment';
 const DATE_TIME_REG = /^\d{4}-[01]\d-[0-3]\dT[0-2]\d:[0-5]\d:[0-5]\d(?:\.\d+)?Z?/;
+
+export const getOrgName = () => {
+  const pathname = _.get(history, 'location.pathname');
+  if (pathname === '/organizations') return;
+  const [, orgName] = _.split(pathname, '/');
+  return orgName;
+};
 
 export const formatTime = (date, fmt = 'YYYY-MM-DD HH:mm:ss') => moment(date).format(fmt);
 
@@ -12,6 +21,14 @@ export function getParams(search = '') {
     obj[newArr[0]] = newArr[1];
   });
   return obj;
+}
+
+export function getParam(name) {
+  const reg = new RegExp('(^|&)' + name + '=([^&]*)(&|$)', 'i');
+  const result: any = window.location.search.substr(1).match(reg);
+  if (!_.isEmpty(result)) {
+    return decodeURI(result[2]);
+  }
 }
 
 export const sleep = (time = 1000) => new Promise((resolve) => setTimeout(resolve, time));
@@ -121,4 +138,17 @@ export function isJson(str) {
     return false;
   }
   return true;
+}
+
+
+export function setSearchParams(params) {
+  const out = new URL(window.location.href);
+  Object.keys(params).forEach((key) => {
+    out.searchParams.set(key, String(params[key]));
+  });
+  const url = out.toString();
+
+  if (url !== window.location.href && window.history.pushState) {
+    window.history.pushState({ path: url }, '', url);
+  }
 }
